@@ -1,10 +1,10 @@
 {
-  "name": "opus-media-recorder",
+  "name": "wemb-media-recorder",
   "version": "0.7.17",
-  "author": "Bumsik Kim",
+  "author": "Bumsik Kim & Aaron Taylor",
   "license": "MIT",
-  "homepage": "https://github.com/kbumsik/opus-media-recorder",
-  "description": "MedialRecorer polyfill for Opus recording using WebAssembly",
+  "homepage": "https://github.com/exphat/webm-media-recorder",
+  "description": "MedialRecorer polyfill for WebM recording using WebAssembly",
   "main": "OpusMediaRecorder.js",
   "files": [
     "OpusMediaRecorder.js",
