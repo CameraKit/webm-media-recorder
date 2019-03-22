@@ -5,7 +5,7 @@
   "license": "MIT",
   "homepage": "https://github.com/exphat/webm-media-recorder",
   "description": "MedialRecorer polyfill for WebM recording using WebAssembly",
-  "main": "OpusMediaRecorder.js",
+  "main": "build/OpusMediaRecorder.js",
   "files": [
     "OpusMediaRecorder.js",
     "OpusMediaRecorder.umd.js",

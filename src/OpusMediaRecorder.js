@@ -40,9 +40,21 @@ class OpusMediaRecorder extends EventTarget {
    *          by the encoder worker. This is NON-STANDARD.
    */
   constructor (stream, options = {}, workerOptions = {}) {
-    const { mimeType, audioBitsPerSecond, videoBitsPerSecond, bitsPerSecond } = options; // eslint-disable-line
+    const {
+      mimeType,
+      audioBitsPerSecond,
+      videoBitsPerSecond,
+      bitsPerSecond,
+      width,
+      height,
+      framerate
+    } = options; // eslint-disable-line
     // NON-STANDARD options
-    const { encoderWorkerFactory, OggOpusEncoderWasmPath, WebMOpusEncoderWasmPath } = workerOptions;
+    const {
+      encoderWorkerFactory,
+      OggOpusEncoderWasmPath,
+      WebMOpusEncoderWasmPath
+    } = workerOptions;
 
     super();
     // Attributes for the specification conformance. These have their own getters.
@@ -50,6 +62,10 @@ class OpusMediaRecorder extends EventTarget {
     this._state = 'inactive';
     this._mimeType = mimeType || '';
     this._audioBitsPerSecond = audioBitsPerSecond || bitsPerSecond;
+    this._videoBitsPerSecond = videoBitsPerSecond || bitsPerSecond;
+    this._width = width || 640;
+    this._height = height || 480;
+    this._framerate = framerate || 30;
     /** @type {'inactive'|'readyToInit'|'encoding'|'closed'} */
     this.workerState = 'inactive';
 
@@ -101,6 +117,7 @@ class OpusMediaRecorder extends EventTarget {
         break;
 
       case 'audio/webm':
+      case 'video/webm':
         this._wasmPath = WebMOpusEncoderWasmPath || '';
         break;
 
@@ -109,7 +126,9 @@ class OpusMediaRecorder extends EventTarget {
         break;
 
       default:
-        throw new Error(`Internal Error: Unexpected MIME Type: ${this._mimeType}`);
+        throw new Error(
+          `Internal Error: Unexpected MIME Type: ${this._mimeType}`
+        );
     }
 
     // Get current directory for worker
@@ -119,17 +138,20 @@ class OpusMediaRecorder extends EventTarget {
     } else if (self.location) {
       workerDir = self.location.href;
     }
-    workerDir = workerDir.substr(0, workerDir.lastIndexOf('/')) +
-                '/encoderWorker.umd.js';
+    workerDir =
+      workerDir.substr(0, workerDir.lastIndexOf('/')) + '/encoderWorker.umd.js';
     // If worker function is imported via <script> tag, make it blob to get URL.
     if (typeof OpusMediaRecorder.encoderWorker === 'function') {
-      workerDir = URL.createObjectURL(new Blob([`(${OpusMediaRecorder.encoderWorker})()`]));
+      workerDir = URL.createObjectURL(
+        new Blob([`(${OpusMediaRecorder.encoderWorker})()`])
+      );
     }
 
     // Spawn a encoder worker
-    this._workerFactory = typeof encoderWorkerFactory === 'function'
-                            ? encoderWorkerFactory
-                            : _ => new Worker(workerDir);
+    this._workerFactory =
+      typeof encoderWorkerFactory === 'function'
+        ? encoderWorkerFactory
+        : _ => new Worker(workerDir);
     this._spawnWorker();
 
     // Get channel count and sampling rate
@@ -146,7 +168,15 @@ class OpusMediaRecorder extends EventTarget {
     /** @type {MediaStreamAudioSourceNode} */
     this.source = this.context.createMediaStreamSource(this.stream);
     /** @type {ScriptProcessorNode} */
-    this.processor = this.context.createScriptProcessor(BUFFER_SIZE, this.channelCount, this.channelCount);
+    this.processor = this.context.createScriptProcessor(
+      BUFFER_SIZE,
+      this.channelCount,
+      this.channelCount
+    );
+
+    this.video = document.createElement("video");
+    this.video.muted = true;
+    this.video.srcObject = this.stream;
   }
 
   /**
@@ -180,12 +210,11 @@ class OpusMediaRecorder extends EventTarget {
   }
 
   /**
-   * The value of the Video encoding. Unsupported.
-   * @return {undefined}
+   * The value of the Video encoding.
+   * @return {number|undefined}
    */
   get videoBitsPerSecond () {
-    // Video encoding is not supported
-    return undefined;
+    return this._videoBitsPerSecond;
   }
 
   /**
@@ -198,17 +227,30 @@ class OpusMediaRecorder extends EventTarget {
     return this._audioBitsPerSecond;
   }
 
+  get width () {
+    return this._width;
+  }
+
+  get height () {
+    return this._height;
+  }
+
+  get framerate () {
+    return this._framerate;
+  }
+
   /**
    * Initialize worker
    */
   _spawnWorker () {
     this.worker = this._workerFactory();
-    this.worker.onmessage = (e) => this._onmessageFromWorker(e);
-    this.worker.onerror = (e) => this._onerrorFromWorker(e);
+    this.worker.onmessage = e => this._onmessageFromWorker(e);
+    this.worker.onerror = e => this._onerrorFromWorker(e);
 
-    this._postMessageToWorker('loadEncoder',
-                              { mimeType: this._mimeType,
-                                wasmPath: this._wasmPath });
+    this._postMessageToWorker('loadEncoder', {
+      mimeType: this._mimeType,
+      wasmPath: this._wasmPath
+    });
   }
 
   /**
@@ -225,11 +267,29 @@ class OpusMediaRecorder extends EventTarget {
 
       case 'init':
         // Initialize the worker
-        let { sampleRate, channelCount, bitsPerSecond } = message;
-        this.worker.postMessage({ command, sampleRate, channelCount, bitsPerSecond });
+        let {
+          sampleRate,
+          channelCount,
+          audioBitsPerSecond,
+          videoBitsPerSecond,
+          width,
+          height,
+          framerate
+        } = message;
+        this.worker.postMessage({
+          command,
+          sampleRate,
+          channelCount,
+          audioBitsPerSecond,
+          videoBitsPerSecond,
+          width,
+          height,
+          framerate
+        });
         this.workerState = 'encoding';
 
         // Start streaming
+        this.video.play();
         this.source.connect(this.processor);
         this.processor.connect(this.context.destination);
         let eventToPush = new global.Event('start');
@@ -240,15 +300,26 @@ class OpusMediaRecorder extends EventTarget {
         // Pass input audio buffer to the encoder to encode.
         // The worker MAY trigger 'encodedData'.
         let { channelBuffers, length, duration } = message;
-        this.worker.postMessage({
-          command, channelBuffers, length, duration
-        }, channelBuffers.map(a => a.buffer));
+        this.worker.postMessage(
+          {
+            command,
+            channelBuffers,
+            length,
+            duration
+          },
+          channelBuffers.map(a => a.buffer)
+        );
         break;
 
       case 'getEncodedData':
         // Request encoded result.
         // Expected 'encodedData' event from the worker
         this.worker.postMessage({ command });
+        break;
+
+      case 'pushVideoData':
+        let {videoData} = message;
+        this.worker.postMessage({command, videoData}, [videoData]);
         break;
 
       case 'done':
@@ -272,21 +343,34 @@ class OpusMediaRecorder extends EventTarget {
     let eventToPush;
     switch (command) {
       case 'readyToInit':
-        const { sampleRate, channelCount } = this;
+        const {
+          sampleRate,
+          channelCount,
+          audioBitsPerSecond,
+          videoBitsPerSecond,
+          width,
+          height,
+          framerate
+        } = this;
         this.workerState = 'readyToInit';
 
         // If start() is already called initialize worker
         if (this.state === 'recording') {
-          this._postMessageToWorker('init',
-                                    { sampleRate,
-                                      channelCount,
-                                      bitsPerSecond: this.audioBitsPerSecond});
+          this._postMessageToWorker('init', {
+            sampleRate,
+            channelCount,
+            audioBitsPerSecond,
+            videoBitsPerSecond,
+            width,
+            height,
+            framerate
+          });
         }
         break;
 
       case 'encodedData':
       case 'lastEncodedData':
-        let data = new Blob(buffers, {'type': this._mimeType});
+        let data = new Blob(buffers, { type: this._mimeType });
         eventToPush = new global.Event('dataavailable');
         eventToPush.data = data;
         this.dispatchEvent(eventToPush);
@@ -337,7 +421,7 @@ class OpusMediaRecorder extends EventTarget {
   _enableAudioProcessCallback (timeslice) {
     // pass frame buffers to the worker
     let elapsedTime = 0;
-    this.processor.onaudioprocess = (e) => {
+    this.processor.onaudioprocess = e => {
       const { inputBuffer, playbackTime } = e; // eslint-disable-line
       const { sampleRate, length, duration, numberOfChannels } = inputBuffer; // eslint-disable-line
 
@@ -360,6 +444,29 @@ class OpusMediaRecorder extends EventTarget {
     };
   }
 
+  _enableVideoReader() {
+    const {width, height, framerate} = this;
+    const self = this;
+    this.video.onplaying = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      const frameTimeout = 1000 / framerate;
+      function f() {
+        ctx.drawImage(self.video, 0, 0);
+        if (self._state === 'recording') {
+          self._postMessageToWorker('pushVideoData', {
+            videoData: ctx.getImageData(0, 0, width, height).data.buffer
+          });
+          setTimeout(f, frameTimeout);
+        }
+      }
+      f();
+    };
+    // this.video.play();
+  }
+
   /**
    * Begins recording media; this method can optionally be passed a timeslice
    * argument with a value in milliseconds.
@@ -370,10 +477,14 @@ class OpusMediaRecorder extends EventTarget {
    */
   start (timeslice = Number.MAX_SAFE_INTEGER) {
     if (this.state !== 'inactive') {
-      throw new Error('DOMException: INVALID_STATE_ERR, state must be inactive.');
+      throw new Error(
+        'DOMException: INVALID_STATE_ERR, state must be inactive.'
+      );
     }
     if (timeslice < 0) {
-      throw new TypeError('invalid arguments, timeslice should be 0 or higher.');
+      throw new TypeError(
+        'invalid arguments, timeslice should be 0 or higher.'
+      );
     }
     timeslice /= 1000; // Convert milliseconds to seconds
 
@@ -384,14 +495,28 @@ class OpusMediaRecorder extends EventTarget {
 
     this._state = 'recording';
     this._enableAudioProcessCallback(timeslice);
+    this._enableVideoReader();
 
     // If the worker is already loaded then start
     if (this.workerState === 'readyToInit') {
-      const { sampleRate, channelCount } = this;
-      this._postMessageToWorker('init',
-                                { sampleRate,
-                                  channelCount,
-                                  bitsPerSecond: this.audioBitsPerSecond });
+      const {
+        sampleRate,
+        channelCount,
+        audioBitsPerSecond,
+        videoBitsPerSecond,
+        width,
+        height,
+        framerate
+      } = this;
+      this._postMessageToWorker('init', {
+        sampleRate,
+        channelCount,
+        audioBitsPerSecond,
+        videoBitsPerSecond,
+        width,
+        height,
+        framerate
+      });
     }
   }
 
@@ -401,7 +526,9 @@ class OpusMediaRecorder extends EventTarget {
    */
   stop () {
     if (this.state === 'inactive') {
-      throw new Error('DOMException: INVALID_STATE_ERR, state must NOT be inactive.');
+      throw new Error(
+        'DOMException: INVALID_STATE_ERR, state must NOT be inactive.'
+      );
     }
 
     // Stop stream first
@@ -419,7 +546,9 @@ class OpusMediaRecorder extends EventTarget {
    */
   pause () {
     if (this.state === 'inactive') {
-      throw new Error('DOMException: INVALID_STATE_ERR, state must NOT be inactive.');
+      throw new Error(
+        'DOMException: INVALID_STATE_ERR, state must NOT be inactive.'
+      );
     }
 
     // Stop stream first
@@ -436,7 +565,9 @@ class OpusMediaRecorder extends EventTarget {
    */
   resume () {
     if (this.state === 'inactive') {
-      throw new Error('DOMException: INVALID_STATE_ERR, state must NOT be inactive.');
+      throw new Error(
+        'DOMException: INVALID_STATE_ERR, state must NOT be inactive.'
+      );
     }
 
     // Restart streaming data
@@ -455,7 +586,9 @@ class OpusMediaRecorder extends EventTarget {
    */
   requestData () {
     if (this.state === 'inactive') {
-      throw new Error('DOMException: INVALID_STATE_ERR, state must NOT be inactive.');
+      throw new Error(
+        'DOMException: INVALID_STATE_ERR, state must NOT be inactive.'
+      );
     }
 
     // dataavailable event will be triggerd at _onmessageFromWorker()
@@ -477,15 +610,24 @@ class OpusMediaRecorder extends EventTarget {
       return true;
     }
     try {
-      var {type, subtype, codec} = OpusMediaRecorder._parseType(mimeType);
+      var { type, subtype, codec } = OpusMediaRecorder._parseType(mimeType);
     } catch (error) {
       // 2. If not a valid string, return false.
       return false;
     }
-    if (type !== 'audio' ||
-      !(subtype === 'ogg' || subtype === 'webm' ||
-        subtype === 'wave' || subtype === 'wav')) {
+    if (
+      type == 'audio' &&
+      !(
+        subtype === 'ogg' ||
+        subtype === 'webm' ||
+        subtype === 'wave' ||
+        subtype === 'wav'
+      )
+    ) {
       // 3,4. If type and subtype are unsupported the return false.
+      return false;
+    }
+    if (type == 'video' && subtype !== 'webm') {
       return false;
     }
     // 5. If codec is unsupported then return false.
@@ -527,11 +669,11 @@ class OpusMediaRecorder extends EventTarget {
       var [, type, subtype, , codec] = mimeType.match(regex);
     } catch (error) {
       if (typeof mimeType === 'string' && !mimeType) {
-        return {type: '', subtype: '', codec: ''};
+        return { type: '', subtype: '', codec: '' };
       }
       return null;
     }
-    return {type, subtype, codec};
+    return { type, subtype, codec };
   }
 }
 
@@ -540,8 +682,7 @@ class OpusMediaRecorder extends EventTarget {
 [
   'start', // Called to handle the {@link MediaRecorder#start} event.
   'stop', // Called to handle the stop event.
-  'dataavailable', /* Called to handle the dataavailable event. The Blob of
-                        recorded data is contained in this event and can be
+  'dataavailable', /* Called to handle the dataavailable event. The Blob of                        recorded data is contained in this event and can be
                         accessed via its data attribute. */
   'pause', // Called to handle the pause event.
   'resume', // Called to handle the resume event.

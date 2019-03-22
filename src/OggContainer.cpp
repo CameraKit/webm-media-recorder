@@ -22,9 +22,9 @@ Container::~Container()
   ogg_stream_clear(&stream_state_);
 }
 
-void Container::init(uint32_t sample_rate, uint8_t channel_count, int serial)
+void Container::initAudio(uint32_t sample_rate, uint8_t channel_count, int serial)
 {
-  ContainerInterface::init(sample_rate, channel_count, serial);
+  ContainerInterface::initAudio(sample_rate, channel_count, serial);
 
   int result = ogg_stream_init(&stream_state_, serial);
   assert(result == 0);  // Init failed
@@ -42,11 +42,28 @@ void Container::init(uint32_t sample_rate, uint8_t channel_count, int serial)
   produceCommentPage();
 }
 
-void Container::writeFrame(void *data, std::size_t size, int num_samples)
+void Container::initVideo(int timebase_num, int timebase_den, unsigned int width, unsigned int height, unsigned int bitrate)
+{
+  ContainerInterface::initVideo(timebase_num, timebase_den, width, height, bitrate);
+
+  // Do nothing because OGG is audio-only
+}
+
+bool Container::writeAudioFrame(void *data, std::size_t size, int num_samples)
 {
   writePacket((uint8_t *)data, size, num_samples, false);
   while (producePacketPage(false) != 0) {}
+
+  return true;
 }
+
+bool Container::writeVideoFrame(void *rgba)
+{
+  // Do nothing because OGG is audio-only
+
+  return true;
+}
+
 void Container::produceIDPage(void)
 {
   std::vector<uint8_t> tmp_buffer(OpusIdHeaderType::SIZE);

@@ -5,6 +5,13 @@
 #include <cstddef>
 #include "lib/webm/mkvmuxer.hpp"
 #include "ContainerInterface.hpp"
+#include "vpxenc.h"
+#include "vpx/vp8cx.h"
+#include "libyuv.h"
+
+int vpx_img_plane_width(const vpx_image_t *img, int plane);
+int vpx_img_plane_height(const vpx_image_t *img, int plane);
+void clear_image(vpx_image_t *img) ;
 
 class Container
   : protected ContainerInterface,
@@ -21,9 +28,11 @@ class Container
     Container();
     ~Container();
 
-    void init(uint32_t sample_rate, uint8_t channel_count, int serial) override;
+    void initAudio(uint32_t sample_rate, uint8_t channel_count, int serial) override;
+    void initVideo(int timebase_num, int timebase_den, unsigned int width, unsigned int height, unsigned int bitrate) override;
 
-    void writeFrame(void *data, std::size_t size, int num_samples) override;
+    bool writeAudioFrame(void *data, std::size_t size, int num_samples) override;
+    bool writeVideoFrame(void *rgba) override;
 
     // IMkvWriter interface.
     mkvmuxer::int32 Write(const void *buf, mkvmuxer::uint32 len) override;
@@ -34,14 +43,25 @@ class Container
                             mkvmuxer::int64 position) override;
 
   private:
-    void addTrack(void);
+    void addAudioTrack(void);
+    void addVideoTrack(void);
+
+    bool initImageBuffer(void);
+    bool RGBAtoVPXImage(const uint8_t *rgba);
 
     // Rolling counter of the position in bytes of the written goo.
     mkvmuxer::int64 position_;
     // The MkvMuxer active element.
     mkvmuxer::Segment segment_;
     uint64_t timestamp_;
-    uint64_t track_number_;
+    uint64_t audio_track_number_;
+    uint64_t video_track_number_;
+
+    vpx_codec_ctx_t ctx;
+    unsigned int frame_cnt = 0;
+    vpx_codec_enc_cfg_t cfg;
+    vpx_codec_iface_t* iface = vpx_codec_vp8_cx();
+    vpx_image_t *img;
 };
 
 #endif /* WEBMCONTAINER_H_ */

@@ -95,6 +95,8 @@ WEBIDL_GLUE_JS = $(addsuffix .js,$(WEBIDL_GLUE_BASE))
 # OGG/WebM Common
 EMCC_INCLUDE_DIR = $(SRC_DIR) \
 					$(LIB_DIR)/ogg/include \
+					$(LIB_DIR)/yuv/include \
+					$(LIB_DIR)/vpx \
 					$(LIB_DIR)/webm \
 					$(LIB_BUILD_DIR) \
 					./

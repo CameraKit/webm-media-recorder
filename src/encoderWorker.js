@@ -30,7 +30,7 @@ function initWorker (workerGlobalScope) {
         let moduleOverrides = {};
         if (wasmPath) {
           moduleOverrides['locateFile'] = function (path, scriptDirectory) {
-            return path.match(/.wasm/) ? wasmPath : (scriptDirectory + path);
+            return path.match(/.wasm/) ? wasmPath : scriptDirectory + path;
           };
         }
         // Initialize the module
@@ -42,8 +42,24 @@ function initWorker (workerGlobalScope) {
         break;
 
       case 'init':
-        const { sampleRate, channelCount, bitsPerSecond } = e.data;
-        encoder.init(sampleRate, channelCount, bitsPerSecond);
+        const {
+          sampleRate,
+          channelCount,
+          audioBitsPerSecond,
+          videoBitsPerSecond,
+          width,
+          height,
+          framerate
+        } = e.data;
+        encoder.init({
+          sampleRate,
+          channelCount,
+          audioBitsPerSecond,
+          videoBitsPerSecond,
+          width,
+          height,
+          framerate
+        });
         break;
 
       case 'pushInputData':
@@ -57,6 +73,13 @@ function initWorker (workerGlobalScope) {
         encoder.encode(channelBuffers);
         break;
 
+      case 'pushVideoData':
+        const {videoData} = e.data;
+        if (encoder) {
+          encoder.encodeVideoFrame(videoData);
+        }
+        break;
+
       case 'getEncodedData':
       case 'done':
         if (command === 'done') {
@@ -64,10 +87,13 @@ function initWorker (workerGlobalScope) {
         }
 
         const buffers = encoder.flush();
-        self.postMessage({
-          command: command === 'done' ? 'lastEncodedData' : 'encodedData',
+        self.postMessage(
+          {
+            command: command === 'done' ? 'lastEncodedData' : 'encodedData',
+            buffers
+          },
           buffers
-        }, buffers);
+        );
 
         if (command === 'done') {
           self.close();
@@ -83,8 +109,10 @@ function initWorker (workerGlobalScope) {
 
 /* global WorkerGlobalScope */
 // Run only if it is in web worker environment
-if (typeof WorkerGlobalScope !== 'undefined' &&
-    self instanceof WorkerGlobalScope) {
+if (
+  typeof WorkerGlobalScope !== 'undefined' &&
+  self instanceof WorkerGlobalScope
+) {
   initWorker(self);
 }
 

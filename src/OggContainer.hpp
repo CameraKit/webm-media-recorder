@@ -66,9 +66,11 @@ public:
   Container();
   ~Container();
 
-  void init(uint32_t sample_rate, uint8_t channel_count, int serial) override;
+  void initAudio(uint32_t sample_rate, uint8_t channel_count, int serial) override;
+  void initVideo(int timebase_num, int timebase_den, unsigned int width, unsigned int height, unsigned int bitrate) override;
 
-  void writeFrame(void *data, std::size_t size, int num_samples) override;
+  bool writeAudioFrame(void *data, std::size_t size, int num_samples) override;
+  bool writeVideoFrame(void *rgba) override;
 
 private:
   ogg_stream_state stream_state_;
