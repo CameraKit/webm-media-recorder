@@ -1,11 +1,11 @@
 {
   "name": "webm-media-recorder",
-  "version": "0.7.17",
+  "version": "0.8.0",
   "author": "Bumsik Kim & Aaron Taylor",
   "license": "MIT",
   "homepage": "https://github.com/CameraKit/webm-media-recorder",
   "description": "MediaRecorer polyfill for WebM recording using WebAssembly",
-  "main": "build/OpusMediaRecorder.js",
+  "main": "OpusMediaRecorder.js",
   "files": [
     "OpusMediaRecorder.js",
     "OpusMediaRecorder.umd.js",
@@ -49,7 +49,8 @@
     "build:production": "make PRODUCTION=1",
     "webpack": "webpack-cli",
     "serve": "webpack-dev-server",
-    "clean": "make clean"
+    "clean": "make clean",
+    "prepublish": "npm run build:production"
   },
   "dependencies": {
     "detect-browser": "^4.1.0",
