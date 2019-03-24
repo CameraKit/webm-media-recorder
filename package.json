@@ -1,10 +1,10 @@
 {
-  "name": "wemb-media-recorder",
+  "name": "webm-media-recorder",
   "version": "0.7.17",
   "author": "Bumsik Kim & Aaron Taylor",
   "license": "MIT",
-  "homepage": "https://github.com/exphat/webm-media-recorder",
-  "description": "MedialRecorer polyfill for WebM recording using WebAssembly",
+  "homepage": "https://github.com/CameraKit/webm-media-recorder",
+  "description": "MediaRecorer polyfill for WebM recording using WebAssembly",
   "main": "build/OpusMediaRecorder.js",
   "files": [
     "OpusMediaRecorder.js",
@@ -22,7 +22,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https+git://github.com/kbumsik/opus-media-recorder"
+    "url": "https+git://github.com/CameraKit/webm-media-recorder"
   },
   "keywords": [
     "MediaRecorder",
@@ -36,6 +36,7 @@
     "Decoder",
     "Stream",
     "Audio",
+    "Video",
     "Microphone",
     "Mic",
     "Recorder",
