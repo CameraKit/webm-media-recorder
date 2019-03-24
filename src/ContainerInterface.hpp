@@ -47,7 +47,8 @@ public:
    * @param channel_count   The number of channels of the stream the maximum is 2.
    * @param serial          Unique number of the stream. Usually a random number.
    */
-  virtual void init(uint32_t sample_rate, uint8_t channel_count, int serial);
+  virtual void initAudio(uint32_t sample_rate, uint8_t channel_count, int serial);
+  virtual void initVideo(int timebase_num, int timebase_den, unsigned int width, unsigned int height, unsigned int bitrate);
 
   /**
    * @brief   Insert data (or a packet). The inserted data can be later collected
@@ -57,7 +58,8 @@ public:
    * @param size          Byte size of the packet data
    * @param num_samples   if < 0, the packet is considered as metadata packet
    */
-  virtual void writeFrame(void *data, std::size_t size, int num_samples) = 0;
+  virtual bool writeAudioFrame(void *data, std::size_t size, int num_samples) = 0;
+  virtual bool writeVideoFrame(void *rgba) = 0;
 
 protected:
   uint32_t sample_rate_;

@@ -3,15 +3,20 @@ const { EmscriptenMemoryAllocator } = require('./commonFunctions.js');
 /**
  * Configuration
  */
-const OPUS_APPLICATION = 2049; /** Defined in opus_defines.h
-                                *  2048: OPUS_APPLICATION_VOIP = Voice (Lower fidelity)
-                                *  2049: OPUS_APPLICATION_AUDIO = Full Band Audio (Highest fidelity)
-                                *  2051: OPUS_APPLICATION_RESTRICTED_LOWDELAY = Restricted Low Delay (Lowest latency) */
+
+/** Defined in opus_defines.h
+ *  2048: OPUS_APPLICATION_VOIP = Voice (Lower fidelity)
+ *  2049: OPUS_APPLICATION_AUDIO = Full Band Audio (Highest fidelity)
+ *  2051: OPUS_APPLICATION_RESTRICTED_LOWDELAY = Restricted Low Delay (Lowest latency) */
+const OPUS_APPLICATION = 2049;
+
 const OPUS_OUTPUT_SAMPLE_RATE = 48000; // Desired encoding sample rate. Audio will be resampled
 const OPUS_OUTPUT_MAX_LENGTH = 4000;
 const OPUS_FRAME_SIZE = 20; // Specified in ms.
 
 const SPEEX_RESAMPLE_QUALITY = 6; // Value between 0 and 10 inclusive. 10 being highest quality.
+
+const BYTES_PER_PIXEL = 4; // RGBA
 
 const BUFFER_LENGTH = 4096;
 
@@ -25,10 +30,22 @@ const OPUS_SET_BITRATE_REQUEST = 4002;
 const RESAMPLER_ERR_SUCCESS = 0;
 
 class _OpusEncoder {
-  constructor (inputSampleRate, channelCount, bitsPerSecond = undefined) {
+  constructor (obj) {
+    let {
+      sampleRate,
+      channelCount,
+      audioBitsPerSecond,
+      videoBitsPerSecond,
+      width,
+      height,
+      framerate
+    } = obj;
     this.config = {
-      inputSampleRate, // Usually 44100Hz or 48000Hz
-      channelCount
+      sampleRate, // Usually 44100Hz or 48000Hz
+      channelCount,
+      width,
+      height,
+      framerate
     };
 
     // Emscripten memory allocator
@@ -44,14 +61,21 @@ class _OpusEncoder {
     this._speex_resampler_destroy = Module._speex_resampler_destroy;
     // Ogg container imported using WebIDL binding
     this._container = new Module.Container();
-    this._container.init(OPUS_OUTPUT_SAMPLE_RATE, channelCount,
-                         Math.floor(Math.random() * 0xFFFFFFFF));
+    this._container.initVideo(1, framerate, width, height, videoBitsPerSecond);
+    this._container.initAudio(
+      OPUS_OUTPUT_SAMPLE_RATE,
+      channelCount,
+      Math.floor(Math.random() * 0xffffffff)
+    );
 
-    this.OpusInitCodec(OPUS_OUTPUT_SAMPLE_RATE, channelCount, bitsPerSecond);
-    this.SpeexInitResampler(inputSampleRate, OPUS_OUTPUT_SAMPLE_RATE, channelCount);
+    this.OpusInitCodec(OPUS_OUTPUT_SAMPLE_RATE, channelCount, audioBitsPerSecond);
+    this.SpeexInitResampler(sampleRate, OPUS_OUTPUT_SAMPLE_RATE, channelCount);
 
-    this.inputSamplesPerChannel = inputSampleRate * OPUS_FRAME_SIZE / 1000;
-    this.outputSamplePerChannel = OPUS_OUTPUT_SAMPLE_RATE * OPUS_FRAME_SIZE / 1000;
+    this.inputSamplesPerChannel = (sampleRate * OPUS_FRAME_SIZE) / 1000;
+    this.outputSamplePerChannel =
+      (OPUS_OUTPUT_SAMPLE_RATE * OPUS_FRAME_SIZE) / 1000;
+
+    this.videoBuffer = this.memory.mallocUint8Buffer(width * height * BYTES_PER_PIXEL);
 
     // Initialize all buffers
     //  |input buffer| =={reampler}=> |resampled buffer| =={encoder}=> |output buffer|
@@ -60,10 +84,15 @@ class _OpusEncoder {
     this.mResampledBuffer = this.memory.mallocFloat32Buffer(this.outputSamplePerChannel * channelCount);
     this.mOutputBuffer = this.memory.mallocUint8Buffer(OPUS_OUTPUT_MAX_LENGTH);
 
+    // Possible future hack:
+    // this.videoBuffer.free();
+    // this.videoBuffer = this.memory.mallocUint8Buffer(width * height * 4);
+
     // TODO: Figure out how to delete this thing.
-    this.interleavedBuffers = (channelCount !== 1)
-                            ? new Float32Array(BUFFER_LENGTH * channelCount)
-                            : undefined;
+    this.interleavedBuffers =
+      channelCount !== 1
+        ? new Float32Array(BUFFER_LENGTH * channelCount)
+        : undefined;
   }
 
   encode (buffers) {
@@ -72,10 +101,14 @@ class _OpusEncoder {
 
     while (sampleIndex < samples.length) {
       // Copy samples to input buffer
-      let lengthToCopy = Math.min(this.mInputBuffer.length - this.inputBufferIndex,
-                                  samples.length - sampleIndex);
-      this.mInputBuffer.set(samples.subarray(sampleIndex, sampleIndex + lengthToCopy),
-                            this.inputBufferIndex);
+      let lengthToCopy = Math.min(
+        this.mInputBuffer.length - this.inputBufferIndex,
+        samples.length - sampleIndex
+      );
+      this.mInputBuffer.set(
+        samples.subarray(sampleIndex, sampleIndex + lengthToCopy),
+        this.inputBufferIndex
+      );
       this.inputBufferIndex += lengthToCopy;
 
       // When mInputBuffer is fill, then encode.
@@ -88,29 +121,39 @@ class _OpusEncoder {
           this.mInputBuffer.pointer,
           mInputLength.pointer,
           this.mResampledBuffer.pointer,
-          mOutputLength.pointer);
+          mOutputLength.pointer
+        );
         mInputLength.free();
         mOutputLength.free();
         if (err !== RESAMPLER_ERR_SUCCESS) {
           throw new Error('Resampling error.');
         }
         // Encoding
-        let packetLength = this._opus_encode_float(this.encoder,
-                                                   this.mResampledBuffer.pointer,
-                                                   this.outputSamplePerChannel,
-                                                   this.mOutputBuffer.pointer,
-                                                   this.mOutputBuffer.length);
+        let packetLength = this._opus_encode_float(
+          this.encoder,
+          this.mResampledBuffer.pointer,
+          this.outputSamplePerChannel,
+          this.mOutputBuffer.pointer,
+          this.mOutputBuffer.length
+        );
         if (packetLength < 0) {
           throw new Error('Opus encoding error.');
         }
         // Input packget to Ogg or WebM page generator
-        this._container.writeFrame(this.mOutputBuffer.pointer,
-                                   packetLength,
-                                   this.outputSamplePerChannel); // 960 samples
+        this._container.writeAudioFrame(
+          this.mOutputBuffer.pointer,
+          packetLength,
+          this.outputSamplePerChannel // 960 samples
+        );
         this.inputBufferIndex = 0;
       }
       sampleIndex += lengthToCopy;
     }
+  }
+
+  encodeVideoFrame (rgba) {
+    this.videoBuffer.set(new Uint8Array(rgba.slice(0)), 0);
+    this._container.writeVideoFrame(this.videoBuffer.pointer);
   }
 
   /**
@@ -118,11 +161,13 @@ class _OpusEncoder {
    */
   close () {
     // Encode the remaining buffers first.
-    const {channelCount} = this.config;
+    const { channelCount } = this.config;
     // Fill zero to buffers, size is the same as re rest of inputBuffer.
     let finalFrameBuffers = [];
     for (let i = 0; i < channelCount; ++i) {
-      finalFrameBuffers.push(new Float32Array(BUFFER_LENGTH - (this.inputBufferIndex / channelCount)));
+      finalFrameBuffers.push(
+        new Float32Array(BUFFER_LENGTH - this.inputBufferIndex / channelCount)
+      );
     }
     this.encode(finalFrameBuffers);
 
@@ -131,6 +176,7 @@ class _OpusEncoder {
     this.mInputBuffer.free();
     this.mResampledBuffer.free();
     this.mOutputBuffer.free();
+    this.videoBuffer.free();
     this._opus_encoder_destroy(this.encoder);
     this._speex_resampler_destroy(this.resampler);
   }
@@ -158,7 +204,12 @@ class _OpusEncoder {
 
   OpusInitCodec (outRate, chCount, bitRate = undefined) {
     let mErr = this.memory.mallocUint32(undefined);
-    this.encoder = this._opus_encoder_create(outRate, chCount, OPUS_APPLICATION, mErr.pointer);
+    this.encoder = this._opus_encoder_create(
+      outRate,
+      chCount,
+      OPUS_APPLICATION,
+      mErr.pointer
+    );
     let err = mErr.value;
     mErr.free();
     if (err !== OPUS_OK) {
@@ -185,8 +236,13 @@ class _OpusEncoder {
 
   SpeexInitResampler (inputRate, outputRate, chCount) {
     let mErr = this.memory.mallocUint32(undefined);
-    this.resampler = this._speex_resampler_init(chCount, inputRate, outputRate,
-                                                SPEEX_RESAMPLE_QUALITY, mErr.pointer);
+    this.resampler = this._speex_resampler_init(
+      chCount,
+      inputRate,
+      outputRate,
+      SPEEX_RESAMPLE_QUALITY,
+      mErr.pointer
+    );
     let err = mErr.value;
     mErr.free();
     if (err !== RESAMPLER_ERR_SUCCESS) {
@@ -202,14 +258,36 @@ class _OpusEncoder {
  * Define the encoder module interface. The worker will interact with
  * the encoder via those functions only.
  */
-Module.init = function (inputSampleRate, channelCount, bitsPerSecond) {
+Module.init = function ({
+  sampleRate,
+  channelCount,
+  audioBitsPerSecond,
+  videoBitsPerSecond,
+  width,
+  height,
+  framerate
+}) {
   Module.encodedBuffers = [];
-  Module.encoder = new _OpusEncoder(inputSampleRate, channelCount, bitsPerSecond);
+  Module.encoder = new _OpusEncoder({
+    sampleRate,
+    channelCount,
+    audioBitsPerSecond,
+    videoBitsPerSecond,
+    width,
+    height,
+    framerate
+  });
 };
 
 Module.encode = function (buffers) {
   Module.encoder.encode(buffers);
 };
+
+Module.encodeVideoFrame = function (rgba) {
+  if (Module.encoder) {
+    Module.encoder.encodeVideoFrame(rgba);
+  }
+}
 
 Module.flush = function () {
   return Module.encodedBuffers.splice(0, Module.encodedBuffers.length);

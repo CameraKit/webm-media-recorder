@@ -95,6 +95,8 @@ WEBIDL_GLUE_JS = $(addsuffix .js,$(WEBIDL_GLUE_BASE))
 # OGG/WebM Common
 EMCC_INCLUDE_DIR = $(SRC_DIR) \
 					$(LIB_DIR)/ogg/include \
+					$(LIB_DIR)/yuv/include \
+					$(LIB_DIR)/vpx \
 					$(LIB_DIR)/webm \
 					$(LIB_BUILD_DIR) \
 					./
@@ -119,8 +121,10 @@ endif
 export OPUS_OBJ = $(LIB_BUILD_DIR)/libopus.a
 export OGG_OBJ = $(LIB_BUILD_DIR)/libogg.a
 export SPEEX_OBJ = $(LIB_BUILD_DIR)/libspeexdsp.a
+export YUV_OBJ = $(LIB_BUILD_DIR)/libyuv.a
+export VPX_OBJ = $(LIB_BUILD_DIR)/libvpx.a
 export WEBM_OBJ = $(LIB_BUILD_DIR)/libwebm.a
-LIB_OBJS = $(OPUS_OBJ) $(OGG_OBJ) $(SPEEX_OBJ) $(WEBM_OBJ)
+LIB_OBJS = $(OPUS_OBJ) $(OGG_OBJ) $(SPEEX_OBJ) $(YUV_OBJ) $(VPX_OBJ) $(WEBM_OBJ)
 
 ###########
 # Targets #

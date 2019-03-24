@@ -13,7 +13,7 @@ ContainerInterface::~ContainerInterface()
   // Nothing to do
 }
 
-void ContainerInterface::init(uint32_t sample_rate, uint8_t channel_count, int serial)
+void ContainerInterface::initAudio(uint32_t sample_rate, uint8_t channel_count, int serial)
 {
   // The container for Opus only supports 48000, other than this value must be
   // a mistake by us, not user. Therefore it has to be caught using assert().
@@ -22,6 +22,15 @@ void ContainerInterface::init(uint32_t sample_rate, uint8_t channel_count, int s
   assert(channel_count > 0 && channel_count <= 2);
   sample_rate_ = sample_rate;
   channel_count_ = channel_count;
+}
+
+void ContainerInterface::initVideo(int timebase_num, int timebase_den, unsigned int width, unsigned int height, unsigned int bitrate)
+{
+  assert(timebase_num > 0);
+  assert(timebase_den > 0);
+  assert(width > 0);
+  assert(height > 0);
+  assert(bitrate > 0);
 }
 
 void ContainerInterface::writeOpusIdHeader(uint8_t *header)

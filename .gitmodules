@@ -10,3 +10,9 @@
 [submodule "lib/webm"]
 	path = lib/webm
 	url = https://chromium.googlesource.com/webm/libwebm
+[submodule "lib/yuv"]
+	path = lib/yuv
+	url = https://chromium.googlesource.com/libyuv/libyuv
+[submodule "lib/vpx"]
+	path = lib/vpx
+	url = https://chromium.googlesource.com/webm/libvpx
