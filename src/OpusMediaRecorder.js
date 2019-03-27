@@ -175,6 +175,7 @@ class OpusMediaRecorder extends EventTarget {
     );
 
     this.video = document.createElement("video");
+    this.video.playsInline = true;
     this.video.muted = true;
     this.video.srcObject = this.stream;
   }
