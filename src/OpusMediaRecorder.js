@@ -449,6 +449,7 @@ class OpusMediaRecorder extends EventTarget {
     const {width, height, framerate} = this;
     const self = this;
     this.video.onplaying = () => {
+      this.dispatchEvent(new Event("videoplaying"));
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
@@ -687,7 +688,8 @@ class OpusMediaRecorder extends EventTarget {
                         accessed via its data attribute. */
   'pause', // Called to handle the pause event.
   'resume', // Called to handle the resume event.
-  'error' // Called to handle a MediaRecorderErrorEvent.
+  'error', // Called to handle a MediaRecorderErrorEvent.
+  'playingvideo' // Called when internal video elements begin playing
 ].forEach(name => defineEventAttribute(OpusMediaRecorder.prototype, name));
 
 // MS Edge specific monkey patching:
