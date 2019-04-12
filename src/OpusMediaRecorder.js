@@ -689,7 +689,7 @@ class OpusMediaRecorder extends EventTarget {
   'pause', // Called to handle the pause event.
   'resume', // Called to handle the resume event.
   'error', // Called to handle a MediaRecorderErrorEvent.
-  'playingvideo' // Called when internal video elements begin playing
+  'videoplaying' // Called when internal video elements begin playing
 ].forEach(name => defineEventAttribute(OpusMediaRecorder.prototype, name));
 
 // MS Edge specific monkey patching:
