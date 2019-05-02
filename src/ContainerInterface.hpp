@@ -59,7 +59,7 @@ public:
    * @param num_samples   if < 0, the packet is considered as metadata packet
    */
   virtual bool writeAudioFrame(void *data, std::size_t size, int num_samples) = 0;
-  virtual bool writeVideoFrame(void *rgba) = 0;
+  virtual bool writeVideoFrame(unsigned int frame_number, void *rgba) = 0;
 
 protected:
   uint32_t sample_rate_;

@@ -70,7 +70,7 @@ public:
   void initVideo(int timebase_num, int timebase_den, unsigned int width, unsigned int height, unsigned int bitrate) override;
 
   bool writeAudioFrame(void *data, std::size_t size, int num_samples) override;
-  bool writeVideoFrame(void *rgba) override;
+  bool writeVideoFrame(unsigned int frame_number, void *rgba) override;
 
 private:
   ogg_stream_state stream_state_;

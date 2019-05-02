@@ -57,7 +57,7 @@ bool Container::writeAudioFrame(void *data, std::size_t size, int num_samples)
   return true;
 }
 
-bool Container::writeVideoFrame(void *rgba)
+bool Container::writeVideoFrame(unsigned int frame_number, void *rgba)
 {
   // Do nothing because OGG is audio-only
 

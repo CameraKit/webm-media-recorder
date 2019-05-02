@@ -32,7 +32,7 @@ class Container
     void initVideo(int timebase_num, int timebase_den, unsigned int width, unsigned int height, unsigned int bitrate) override;
 
     bool writeAudioFrame(void *data, std::size_t size, int num_samples) override;
-    bool writeVideoFrame(void *rgba) override;
+    bool writeVideoFrame(unsigned int frame_number, void *rgba) override;
 
     // IMkvWriter interface.
     mkvmuxer::int32 Write(const void *buf, mkvmuxer::uint32 len) override;
@@ -58,7 +58,6 @@ class Container
     uint64_t video_track_number_;
 
     vpx_codec_ctx_t ctx;
-    unsigned int frame_cnt = 0;
     vpx_codec_enc_cfg_t cfg;
     vpx_codec_iface_t* iface = vpx_codec_vp8_cx();
     vpx_image_t *img;

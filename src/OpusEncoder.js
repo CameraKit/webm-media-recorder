@@ -152,8 +152,9 @@ class _OpusEncoder {
   }
 
   encodeVideoFrame (rgba) {
+  encodeVideoFrame (frameNumber, rgba) {
     this.videoBuffer.set(new Uint8Array(rgba.slice(0)), 0);
-    this._container.writeVideoFrame(this.videoBuffer.pointer);
+    this._container.writeVideoFrame(frameNumber, this.videoBuffer.pointer);
   }
 
   /**
@@ -283,9 +284,9 @@ Module.encode = function (buffers) {
   Module.encoder.encode(buffers);
 };
 
-Module.encodeVideoFrame = function (rgba) {
+Module.encodeVideoFrame = function (frameNumber, rgba) {
   if (Module.encoder) {
-    Module.encoder.encodeVideoFrame(rgba);
+    Module.encoder.encodeVideoFrame(frameNumber, rgba);
   }
 }
 

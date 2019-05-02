@@ -66,6 +66,8 @@ class OpusMediaRecorder extends EventTarget {
     this._width = width || 640;
     this._height = height || 480;
     this._framerate = framerate || 30;
+    this.videoFrame = 0;
+    this.videoInterval = null;
     /** @type {'inactive'|'readyToInit'|'encoding'|'closed'} */
     this.workerState = 'inactive';
 
@@ -319,8 +321,8 @@ class OpusMediaRecorder extends EventTarget {
         break;
 
       case 'pushVideoData':
-        let {videoData} = message;
-        this.worker.postMessage({command, videoData}, [videoData]);
+        let {videoData, frameNumber} = message;
+        this.worker.postMessage({command, videoData, frameNumber}, [videoData]);
         break;
 
       case 'done':
@@ -445,27 +447,27 @@ class OpusMediaRecorder extends EventTarget {
     };
   }
 
-  _enableVideoReader() {
+  _enableVideoReader() { 
     const {width, height, framerate} = this;
     const self = this;
-    this.video.onplaying = () => {
+    this.video.addEventListener("playing", () => {
       this.dispatchEvent(new Event("videoplaying"));
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext("2d");
       const frameTimeout = 1000 / framerate;
-      function f() {
-        ctx.drawImage(self.video, 0, 0);
-        if (self._state === 'recording') {
-          self._postMessageToWorker('pushVideoData', {
-            videoData: ctx.getImageData(0, 0, width, height).data.buffer
+      clearInterval(this.videoInterval);
+      this.videoInterval = setInterval(() => {
+        ctx.drawImage(this.video, 0, 0);
+        if (this._state === 'recording') {
+          this._postMessageToWorker('pushVideoData', {
+            videoData: ctx.getImageData(0, 0, width, height).data.buffer,
+            frameNumber: this.videoFrame++
           });
-          setTimeout(f, frameTimeout);
         }
-      }
-      f();
-    };
+      }, frameTimeout);
+    }, {once: true});
     // this.video.play();
   }
 

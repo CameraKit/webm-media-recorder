@@ -74,9 +74,9 @@ function initWorker (workerGlobalScope) {
         break;
 
       case 'pushVideoData':
-        const {videoData} = e.data;
+        const {videoData, frameNumber} = e.data;
         if (encoder) {
-          encoder.encodeVideoFrame(videoData);
+          encoder.encodeVideoFrame(frameNumber, videoData);
         }
         break;
 

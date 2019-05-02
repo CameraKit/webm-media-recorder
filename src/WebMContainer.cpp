@@ -108,7 +108,7 @@ bool Container::writeAudioFrame(void *data, std::size_t size, int num_samples)
   return success;
 }
 
-bool Container::writeVideoFrame(void *rgba)
+bool Container::writeVideoFrame(unsigned int frame_number, void *rgba)
 {
   RGBAtoVPXImage((const uint8_t*) rgba);
 
@@ -119,12 +119,11 @@ bool Container::writeVideoFrame(void *rgba)
   err = vpx_codec_encode(
     &ctx,
     img,
-    frame_cnt, /* time of frame */
+    frame_number,
     1, /* length of frame */
     0, /* flags. Use VPX_EFLAG_FORCE_KF to force a keyframe. */
     VPX_DL_REALTIME
   );
-  frame_cnt++;
   
   if (err != VPX_CODEC_OK) {
     return false;
