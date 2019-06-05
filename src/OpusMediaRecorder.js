@@ -159,20 +159,19 @@ class OpusMediaRecorder extends EventTarget {
     // sampleRate: https://developer.mozilla.org/en-US/docs/Web/API/BaseAudioContext/sampleRate
     this.context = new AudioContext();
     let tracks = this.stream.getAudioTracks();
-    if (!tracks[0]) {
-      throw new Error('DOMException: UnkownError, media track not found.');
-    }
-    this.channelCount = tracks[0].getSettings().channelCount || 1;
-    this.sampleRate = this.context.sampleRate;
+    if (tracks[0]) {
+      this.channelCount = tracks[0].getSettings().channelCount || 1;
+      this.sampleRate = this.context.sampleRate;
 
-    /** @type {MediaStreamAudioSourceNode} */
-    this.source = this.context.createMediaStreamSource(this.stream);
-    /** @type {ScriptProcessorNode} */
-    this.processor = this.context.createScriptProcessor(
-      BUFFER_SIZE,
-      this.channelCount,
-      this.channelCount
-    );
+      /** @type {MediaStreamAudioSourceNode} */
+      this.source = this.context.createMediaStreamSource(this.stream);
+      /** @type {ScriptProcessorNode} */
+      this.processor = this.context.createScriptProcessor(
+        BUFFER_SIZE,
+        this.channelCount,
+        this.channelCount
+      );
+    }
 
     this.video = document.createElement("video");
     this.video.playsInline = true;
@@ -291,8 +290,8 @@ class OpusMediaRecorder extends EventTarget {
 
         // Start streaming
         this.video.play();
-        this.source.connect(this.processor);
-        this.processor.connect(this.context.destination);
+        this.source && this.source.connect(this.processor);
+        this.processor && this.processor.connect(this.context.destination);
         let eventToPush = new global.Event('start');
         this.dispatchEvent(eventToPush);
         break;
@@ -396,8 +395,8 @@ class OpusMediaRecorder extends EventTarget {
    */
   _onerrorFromWorker (error) {
     // Stop stream first
-    this.source.disconnect();
-    this.processor.disconnect();
+    this.source && this.source.disconnect();
+    this.processor && this.processor.disconnect();
 
     this.worker.terminate();
     this.workerState = 'closed';
@@ -496,7 +495,7 @@ class OpusMediaRecorder extends EventTarget {
     }
 
     this._state = 'recording';
-    this._enableAudioProcessCallback(timeslice);
+    this.processor && this._enableAudioProcessCallback(timeslice);
     this._enableVideoReader();
 
     // If the worker is already loaded then start
@@ -534,8 +533,8 @@ class OpusMediaRecorder extends EventTarget {
     }
 
     // Stop stream first
-    this.source.disconnect();
-    this.processor.disconnect();
+    this.source && this.source.disconnect();
+    this.processor && this.processor.disconnect();
 
     // Stop event will be triggered at _onmessageFromWorker(),
     this._postMessageToWorker('done');
@@ -554,8 +553,8 @@ class OpusMediaRecorder extends EventTarget {
     }
 
     // Stop stream first
-    this.source.disconnect();
-    this.processor.disconnect();
+    this.source && this.source.disconnect();
+    this.processor && this.processor.disconnect();
 
     let event = new global.Event('pause');
     this.dispatchEvent(event);
@@ -573,8 +572,8 @@ class OpusMediaRecorder extends EventTarget {
     }
 
     // Restart streaming data
-    this.source.connect(this.processor);
-    this.processor.connect(this.context.destination);
+    this.source && this.source.connect(this.processor);
+    this.processor && this.processor.connect(this.context.destination);
 
     let event = new global.Event('resume');
     this.dispatchEvent(event);
