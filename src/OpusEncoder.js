@@ -50,49 +50,57 @@ class _OpusEncoder {
 
     // Emscripten memory allocator
     this.memory = new EmscriptenMemoryAllocator(Module);
-    // libopus functions imported from WASM
-    this._opus_encoder_create = Module._opus_encoder_create;
-    this._opus_encoder_ctl = Module._opus_encoder_ctl;
-    this._opus_encode_float = Module._opus_encode_float;
-    this._opus_encoder_destroy = Module._opus_encoder_destroy;
-    // SpeexDSP functions
-    this._speex_resampler_init = Module._speex_resampler_init;
-    this._speex_resampler_process_interleaved_float = Module._speex_resampler_process_interleaved_float;
-    this._speex_resampler_destroy = Module._speex_resampler_destroy;
+
+    if (channelCount > 0) {
+      // libopus functions imported from WASM
+      this._opus_encoder_create = Module._opus_encoder_create;
+      this._opus_encoder_ctl = Module._opus_encoder_ctl;
+      this._opus_encode_float = Module._opus_encode_float;
+      this._opus_encoder_destroy = Module._opus_encoder_destroy;
+      // SpeexDSP functions
+      this._speex_resampler_init = Module._speex_resampler_init;
+      this._speex_resampler_process_interleaved_float = Module._speex_resampler_process_interleaved_float;
+      this._speex_resampler_destroy = Module._speex_resampler_destroy;
+    }
     // Ogg container imported using WebIDL binding
     this._container = new Module.Container();
     this._container.initVideo(1, framerate, width, height, videoBitsPerSecond);
-    this._container.initAudio(
-      OPUS_OUTPUT_SAMPLE_RATE,
-      channelCount,
-      Math.floor(Math.random() * 0xffffffff)
-    );
 
-    this.OpusInitCodec(OPUS_OUTPUT_SAMPLE_RATE, channelCount, audioBitsPerSecond);
-    this.SpeexInitResampler(sampleRate, OPUS_OUTPUT_SAMPLE_RATE, channelCount);
+    if (channelCount > 0) {
+      this._container.initAudio(
+        OPUS_OUTPUT_SAMPLE_RATE,
+        channelCount,
+        Math.floor(Math.random() * 0xffffffff)
+      );
 
-    this.inputSamplesPerChannel = (sampleRate * OPUS_FRAME_SIZE) / 1000;
-    this.outputSamplePerChannel =
-      (OPUS_OUTPUT_SAMPLE_RATE * OPUS_FRAME_SIZE) / 1000;
+      this.OpusInitCodec(OPUS_OUTPUT_SAMPLE_RATE, channelCount, audioBitsPerSecond);
+      this.SpeexInitResampler(sampleRate, OPUS_OUTPUT_SAMPLE_RATE, channelCount);
+
+      this.inputSamplesPerChannel = (sampleRate * OPUS_FRAME_SIZE) / 1000;
+      this.outputSamplePerChannel =
+        (OPUS_OUTPUT_SAMPLE_RATE * OPUS_FRAME_SIZE) / 1000;      
+    }
 
     this.videoBuffer = this.memory.mallocUint8Buffer(width * height * BYTES_PER_PIXEL);
 
-    // Initialize all buffers
-    //  |input buffer| =={reampler}=> |resampled buffer| =={encoder}=> |output buffer|
-    this.inputBufferIndex = 0;
-    this.mInputBuffer = this.memory.mallocFloat32Buffer(this.inputSamplesPerChannel * channelCount);
-    this.mResampledBuffer = this.memory.mallocFloat32Buffer(this.outputSamplePerChannel * channelCount);
-    this.mOutputBuffer = this.memory.mallocUint8Buffer(OPUS_OUTPUT_MAX_LENGTH);
+    if (channelCount > 0) {
+      // Initialize all buffers
+      //  |input buffer| =={reampler}=> |resampled buffer| =={encoder}=> |output buffer|
+      this.inputBufferIndex = 0;
+      this.mInputBuffer = this.memory.mallocFloat32Buffer(this.inputSamplesPerChannel * channelCount);
+      this.mResampledBuffer = this.memory.mallocFloat32Buffer(this.outputSamplePerChannel * channelCount);
+      this.mOutputBuffer = this.memory.mallocUint8Buffer(OPUS_OUTPUT_MAX_LENGTH);
 
-    // Possible future hack:
-    // this.videoBuffer.free();
-    // this.videoBuffer = this.memory.mallocUint8Buffer(width * height * 4);
+      // Possible future hack:
+      // this.videoBuffer.free();
+      // this.videoBuffer = this.memory.mallocUint8Buffer(width * height * 4);
 
-    // TODO: Figure out how to delete this thing.
-    this.interleavedBuffers =
-      channelCount !== 1
-        ? new Float32Array(BUFFER_LENGTH * channelCount)
-        : undefined;
+      // TODO: Figure out how to delete this thing.
+      this.interleavedBuffers =
+        channelCount !== 1
+          ? new Float32Array(BUFFER_LENGTH * channelCount)
+          : undefined;
+    }
   }
 
   encode (buffers) {
@@ -169,16 +177,21 @@ class _OpusEncoder {
         new Float32Array(BUFFER_LENGTH - this.inputBufferIndex / channelCount)
       );
     }
-    this.encode(finalFrameBuffers);
+    if (channelCount > 0) {
+      this.encode(finalFrameBuffers);
+    }
 
     // By destroying the container it may emit the remaining buffer.
     Module.destroy(this._container);
-    this.mInputBuffer.free();
-    this.mResampledBuffer.free();
-    this.mOutputBuffer.free();
     this.videoBuffer.free();
-    this._opus_encoder_destroy(this.encoder);
-    this._speex_resampler_destroy(this.resampler);
+
+    if (channelCount > 0) {
+      this.mInputBuffer.free();
+      this.mResampledBuffer.free();
+      this.mOutputBuffer.free();
+      this._opus_encoder_destroy(this.encoder);
+      this._speex_resampler_destroy(this.resampler);
+    }
   }
 
   /**
